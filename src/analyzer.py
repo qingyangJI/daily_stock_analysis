@@ -646,6 +646,8 @@ def stabilize_decision_with_structure(
             _first_list_value(trend_dict.get("resistance_levels")),
         )
         flow_bias = _capital_flow_bias(fundamental_context)
+        if flow_bias == "unavailable":
+            return
         decision_type = infer_decision_type_from_advice(
             getattr(result, "decision_type", ""),
             default=getattr(result, "decision_type", "hold") or "hold",
@@ -808,24 +810,32 @@ def _first_numeric_value(*values: Any) -> Optional[float]:
 
 def _capital_flow_bias(fundamental_context: Optional[Dict[str, Any]]) -> str:
     if not isinstance(fundamental_context, dict):
-        return "neutral"
+        return "unavailable"
     block = fundamental_context.get("capital_flow")
     if not isinstance(block, dict):
-        return "neutral"
+        return "unavailable"
+    if block.get("status") == "not_supported":
+        return "unavailable"
     data = block.get("data") if isinstance(block.get("data"), dict) else block
     stock_flow = data.get("stock_flow") if isinstance(data, dict) else None
-    if not isinstance(stock_flow, dict):
-        return "neutral"
+    if not isinstance(stock_flow, dict) or not stock_flow:
+        return "unavailable"
 
     def _flow_direction(value: Optional[float]) -> Optional[str]:
         if value is None or value == 0:
             return None
         return "inflow" if value > 0 else "outflow"
 
+    numeric_values = [
+        _coerce_numeric_value(stock_flow.get("main_net_inflow")),
+        _coerce_numeric_value(stock_flow.get("inflow_5d")),
+        _coerce_numeric_value(stock_flow.get("inflow_10d")),
+    ]
+    if all(value is None for value in numeric_values):
+        return "unavailable"
+
     ordered_signals = [
-        _flow_direction(_coerce_numeric_value(stock_flow.get("main_net_inflow"))),
-        _flow_direction(_coerce_numeric_value(stock_flow.get("inflow_5d"))),
-        _flow_direction(_coerce_numeric_value(stock_flow.get("inflow_10d"))),
+        _flow_direction(value) for value in numeric_values
     ]
     directions = {signal for signal in ordered_signals if signal is not None}
     if not directions or len(directions) > 1:

@@ -52,6 +52,15 @@ def _fund_flow(main: float, five_day: float = 0.0, ten_day: float = 0.0) -> dict
     }
 
 
+def _unsupported_fund_flow() -> dict:
+    return {"capital_flow": {"status": "not_supported", "data": {}}}
+
+
+def test_capital_flow_bias_is_unavailable_when_stock_flow_data_is_missing() -> None:
+    assert _capital_flow_bias(_unsupported_fund_flow()) == "unavailable"
+    assert _capital_flow_bias({"capital_flow": {"status": "ok", "data": {}}}) == "unavailable"
+
+
 def test_capital_flow_bias_is_neutral_when_missing_main_windows_conflict() -> None:
     context = {
         "capital_flow": {
@@ -113,6 +122,40 @@ def test_downgrades_buy_mid_range_with_neutral_fund_flow() -> None:
     assert result.sentiment_score <= 59
     assert result.operation_advice == "震荡观望"
     assert "资金流不明确" in result.risk_warning
+
+
+def test_skips_calibration_when_capital_flow_is_unavailable() -> None:
+    buy_result = _result(
+        decision_type="buy",
+        operation_advice="买入",
+        score=66,
+        current_price=32.0,
+    )
+    sell_result = _result(
+        decision_type="sell",
+        operation_advice="卖出",
+        score=30,
+        current_price=30.4,
+        change_pct=-2.1,
+    )
+
+    stabilize_decision_with_structure(
+        buy_result,
+        SimpleNamespace(support_levels=[30.0], resistance_levels=[34.0]),
+        _unsupported_fund_flow(),
+    )
+    stabilize_decision_with_structure(
+        sell_result,
+        SimpleNamespace(support_levels=[30.0], resistance_levels=[34.0]),
+        _unsupported_fund_flow(),
+    )
+
+    assert buy_result.decision_type == "buy"
+    assert buy_result.operation_advice == "买入"
+    assert "decision_stability" not in buy_result.dashboard
+    assert sell_result.decision_type == "sell"
+    assert sell_result.operation_advice == "卖出"
+    assert "decision_stability" not in sell_result.dashboard
 
 
 def test_downgrades_sell_near_support_without_sustained_outflow() -> None:
