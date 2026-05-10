@@ -46,7 +46,6 @@ class SystemConfigApiTestCase(unittest.TestCase):
             encoding="utf-8",
         )
         os.environ["ENV_FILE"] = str(self.env_path)
-        os.environ["DSA_DESKTOP_MODE"] = "true"
         Config.reset_instance()
 
         self.manager = ConfigManager(env_path=self.env_path)
@@ -54,7 +53,6 @@ class SystemConfigApiTestCase(unittest.TestCase):
 
     def tearDown(self) -> None:
         Config.reset_instance()
-        os.environ.pop("DSA_DESKTOP_MODE", None)
         os.environ.pop("ENV_FILE", None)
         self.temp_dir.cleanup()
 
@@ -197,27 +195,27 @@ class SystemConfigApiTestCase(unittest.TestCase):
         self.assertIn("以 schedule 模式重新启动后生效", schedule_warning)
         self.assertNotIn("它属于启动期单次运行配置", schedule_warning)
 
-    def test_export_desktop_system_config_returns_raw_env_content(self) -> None:
+    def test_export_system_config_returns_raw_env_content(self) -> None:
         self.env_path.write_text(
-            "# Desktop config\nSTOCK_LIST=600519,000001\nGEMINI_API_KEY=secret-key-value\n",
+            "# Web config\nSTOCK_LIST=600519,000001\nGEMINI_API_KEY=secret-key-value\n",
             encoding="utf-8",
         )
 
-        payload = system_config.export_desktop_system_config(service=self.service).model_dump()
+        payload = system_config.export_system_config(service=self.service).model_dump()
 
         self.assertEqual(
             payload["content"],
-            "# Desktop config\nSTOCK_LIST=600519,000001\nGEMINI_API_KEY=secret-key-value\n",
+            "# Web config\nSTOCK_LIST=600519,000001\nGEMINI_API_KEY=secret-key-value\n",
         )
         self.assertEqual(payload["config_version"], self.manager.get_config_version())
 
-    def test_import_desktop_system_config_merges_updates(self) -> None:
+    def test_import_system_config_merges_updates(self) -> None:
         current = system_config.get_system_config(include_schema=False, service=self.service).model_dump()
 
-        payload = system_config.import_desktop_system_config(
+        payload = system_config.import_system_config(
             request=ImportSystemConfigRequest(
                 config_version=current["config_version"],
-                content="STOCK_LIST=300750\nCUSTOM_NOTE=desktop backup\n",
+                content="STOCK_LIST=300750\nCUSTOM_NOTE=config backup\n",
                 reload_now=False,
             ),
             service=self.service,
@@ -226,12 +224,12 @@ class SystemConfigApiTestCase(unittest.TestCase):
         self.assertTrue(payload["success"])
         env_content = self.env_path.read_text(encoding="utf-8")
         self.assertIn("STOCK_LIST=300750\n", env_content)
-        self.assertIn("CUSTOM_NOTE=desktop backup\n", env_content)
+        self.assertIn("CUSTOM_NOTE=config backup\n", env_content)
         self.assertIn("GEMINI_API_KEY=secret-key-value\n", env_content)
 
-    def test_import_desktop_system_config_returns_conflict_when_version_is_stale(self) -> None:
+    def test_import_system_config_returns_conflict_when_version_is_stale(self) -> None:
         with self.assertRaises(HTTPException) as context:
-            system_config.import_desktop_system_config(
+            system_config.import_system_config(
                 request=ImportSystemConfigRequest(
                     config_version="stale-version",
                     content="STOCK_LIST=300750\n",
@@ -243,11 +241,11 @@ class SystemConfigApiTestCase(unittest.TestCase):
         self.assertEqual(context.exception.status_code, 409)
         self.assertEqual(context.exception.detail["error"], "config_version_conflict")
 
-    def test_import_desktop_system_config_returns_bad_request_for_invalid_content(self) -> None:
+    def test_import_system_config_returns_bad_request_for_invalid_content(self) -> None:
         current = system_config.get_system_config(include_schema=False, service=self.service).model_dump()
 
         with self.assertRaises(HTTPException) as context:
-            system_config.import_desktop_system_config(
+            system_config.import_system_config(
                 request=ImportSystemConfigRequest(
                     config_version=current["config_version"],
                     content="# comments only\n\n",
@@ -259,11 +257,11 @@ class SystemConfigApiTestCase(unittest.TestCase):
         self.assertEqual(context.exception.status_code, 400)
         self.assertEqual(context.exception.detail["error"], "invalid_import_file")
 
-    def test_import_desktop_system_config_returns_bad_request_for_empty_content(self) -> None:
+    def test_import_system_config_returns_bad_request_for_empty_content(self) -> None:
         current = system_config.get_system_config(include_schema=False, service=self.service).model_dump()
 
         with self.assertRaises(HTTPException) as context:
-            system_config.import_desktop_system_config(
+            system_config.import_system_config(
                 request=ImportSystemConfigRequest(
                     config_version=current["config_version"],
                     content="",
@@ -275,26 +273,23 @@ class SystemConfigApiTestCase(unittest.TestCase):
         self.assertEqual(context.exception.status_code, 400)
         self.assertEqual(context.exception.detail["error"], "invalid_import_file")
 
-    def test_desktop_env_endpoints_return_forbidden_outside_desktop_mode(self) -> None:
+    def test_config_env_endpoints_work_outside_desktop_mode(self) -> None:
         os.environ["DSA_DESKTOP_MODE"] = "false"
         current = system_config.get_system_config(include_schema=False, service=self.service).model_dump()
 
-        with self.assertRaises(HTTPException) as export_context:
-            system_config.export_desktop_system_config(service=self.service)
-        with self.assertRaises(HTTPException) as import_context:
-            system_config.import_desktop_system_config(
-                request=ImportSystemConfigRequest(
-                    config_version=current["config_version"],
-                    content="STOCK_LIST=300750\n",
-                    reload_now=False,
-                ),
-                service=self.service,
-            )
+        export_payload = system_config.export_system_config(service=self.service).model_dump()
+        import_payload = system_config.import_system_config(
+            request=ImportSystemConfigRequest(
+                config_version=current["config_version"],
+                content="STOCK_LIST=300750\n",
+                reload_now=False,
+            ),
+            service=self.service,
+        ).model_dump()
 
-        self.assertEqual(export_context.exception.status_code, 403)
-        self.assertEqual(export_context.exception.detail["error"], "desktop_only_feature")
-        self.assertEqual(import_context.exception.status_code, 403)
-        self.assertEqual(import_context.exception.detail["error"], "desktop_only_feature")
+        self.assertIn("STOCK_LIST=600519,000001", export_payload["content"])
+        self.assertTrue(import_payload["success"])
+        self.assertEqual(self.manager.read_config_map()["STOCK_LIST"], "300750")
 
     def test_test_llm_channel_endpoint_returns_service_payload(self) -> None:
         with patch.object(

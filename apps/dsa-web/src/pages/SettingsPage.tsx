@@ -131,12 +131,12 @@ function getDesktopUpdateNotice(state: DesktopUpdateState | null) {
   return null;
 }
 
-function formatDesktopEnvFilename() {
+function formatEnvBackupFilename(isDesktopRuntime: boolean) {
   const now = new Date();
   const pad = (value: number) => value.toString().padStart(2, '0');
   const date = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
   const time = `${pad(now.getHours())}${pad(now.getMinutes())}`;
-  return `dsa-desktop-env_${date}_${time}.env`;
+  return `${isDesktopRuntime ? 'dsa-desktop-env' : 'dsa-env'}_${date}_${time}.env`;
 }
 
 const SettingsPage: React.FC = () => {
@@ -311,12 +311,12 @@ const SettingsPage: React.FC = () => {
     setDesktopActionSuccess('');
     setIsExportingEnv(true);
     try {
-      const payload = await systemConfigApi.exportDesktopEnv();
+      const payload = await systemConfigApi.exportEnv();
       const blob = new Blob([payload.content], { type: 'text/plain;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;
-      anchor.download = formatDesktopEnvFilename();
+      anchor.download = formatEnvBackupFilename(isDesktopRuntime);
       document.body.appendChild(anchor);
       anchor.click();
       document.body.removeChild(anchor);
@@ -352,7 +352,7 @@ const SettingsPage: React.FC = () => {
     setIsImportingEnv(true);
     try {
       const content = await file.text();
-      await systemConfigApi.importDesktopEnv({
+      await systemConfigApi.importEnv({
         configVersion,
         content,
         reloadNow: true,
@@ -362,7 +362,7 @@ const SettingsPage: React.FC = () => {
         setDesktopActionError(createParsedApiError({
           title: '配置已导入但刷新失败',
           message: '备份已导入，但重新加载配置失败，请手动重载页面。',
-          rawMessage: 'Desktop env import succeeded but config refresh failed',
+          rawMessage: 'Env import succeeded but config refresh failed',
           category: 'http_error',
         }));
         return;
@@ -567,10 +567,10 @@ const SettingsPage: React.FC = () => {
                 ) : null}
               </SettingsSectionCard>
             ) : null}
-            {activeCategory === 'system' && isDesktopRuntime ? (
+            {activeCategory === 'system' ? (
               <SettingsSectionCard
                 title="配置备份"
-                description="导出当前已保存的 .env 备份，或从备份文件恢复桌面端配置。导入会覆盖备份中出现的键并立即重载。"
+                description="导出当前已保存的 .env 备份，或从备份文件恢复配置。导入会覆盖备份中出现的键并立即重载。"
               >
                 <div className="space-y-4">
                   <div className="flex flex-wrap items-center gap-3">

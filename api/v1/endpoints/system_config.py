@@ -4,8 +4,6 @@
 from __future__ import annotations
 
 import logging
-import os
-
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from api.deps import get_system_config_service
@@ -39,18 +37,6 @@ from src.services.system_config_service import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-
-def _ensure_desktop_mode() -> None:
-    """Restrict desktop backup/restore endpoints to desktop runtime only."""
-    if os.getenv("DSA_DESKTOP_MODE", "").strip().lower() != "true":
-        raise HTTPException(
-            status_code=403,
-            detail={
-                "error": "desktop_only_feature",
-                "message": "This endpoint is only available in desktop mode",
-            },
-        )
 
 
 @router.get(
@@ -170,29 +156,27 @@ def update_system_config(
     "/config/export",
     response_model=ExportSystemConfigResponse,
     responses={
-        200: {"description": "Desktop env exported"},
+        200: {"description": "Env exported"},
         401: {"description": "Unauthorized", "model": ErrorResponse},
-        403: {"description": "Desktop mode only", "model": ErrorResponse},
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
-    summary="Export desktop env backup",
-    description="Desktop-only endpoint that returns the raw saved .env content.",
+    summary="Export env backup",
+    description="Return the raw saved .env content for configuration backup.",
 )
-def export_desktop_system_config(
+def export_system_config(
     service: SystemConfigService = Depends(get_system_config_service),
 ) -> ExportSystemConfigResponse:
-    """Export the active `.env` file for desktop backup."""
-    _ensure_desktop_mode()
+    """Export the active `.env` file for config backup."""
     try:
-        payload = service.export_desktop_env()
+        payload = service.export_env()
         return ExportSystemConfigResponse.model_validate(payload)
     except Exception as exc:
-        logger.error("Failed to export desktop system configuration: %s", exc, exc_info=True)
+        logger.error("Failed to export system configuration: %s", exc, exc_info=True)
         raise HTTPException(
             status_code=500,
             detail={
                 "error": "internal_error",
-                "message": "Failed to export desktop system configuration",
+                "message": "Failed to export system configuration",
             },
         )
 
@@ -201,7 +185,7 @@ def export_desktop_system_config(
     "/config/import",
     response_model=UpdateSystemConfigResponse,
     responses={
-        200: {"description": "Desktop env imported"},
+        200: {"description": "Env imported"},
         400: {
             "description": "Import failed",
             "content": {
@@ -216,21 +200,19 @@ def export_desktop_system_config(
             },
         },
         401: {"description": "Unauthorized", "model": ErrorResponse},
-        403: {"description": "Desktop mode only", "model": ErrorResponse},
         409: {"description": "Version conflict", "model": SystemConfigConflictResponse},
         500: {"description": "Internal server error", "model": ErrorResponse},
     },
-    summary="Import desktop env backup",
-    description="Desktop-only endpoint that merges raw .env text into the saved configuration.",
+    summary="Import env backup",
+    description="Merge raw .env text into the saved configuration with config version conflict protection.",
 )
-def import_desktop_system_config(
+def import_system_config(
     request: ImportSystemConfigRequest,
     service: SystemConfigService = Depends(get_system_config_service),
 ) -> UpdateSystemConfigResponse:
-    """Import a desktop `.env` backup into the active config."""
-    _ensure_desktop_mode()
+    """Import a `.env` backup into the active config."""
     try:
-        payload = service.import_desktop_env(
+        payload = service.import_env(
             config_version=request.config_version,
             content=request.content,
             reload_now=request.reload_now,
@@ -263,12 +245,12 @@ def import_desktop_system_config(
             },
         )
     except Exception as exc:
-        logger.error("Failed to import desktop system configuration: %s", exc, exc_info=True)
+        logger.error("Failed to import system configuration: %s", exc, exc_info=True)
         raise HTTPException(
             status_code=500,
             detail={
                 "error": "internal_error",
-                "message": "Failed to import desktop system configuration",
+                "message": "Failed to import system configuration",
             },
         )
 
