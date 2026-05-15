@@ -256,6 +256,16 @@ class TestSettingsHelpContract(unittest.TestCase):
         self.assertEqual(external_keys, [], f"Unexpected locale-only help keys: {external_keys}")
 
 
+class TestStockListFetchApiFieldRegistered(unittest.TestCase):
+    """Remote watchlist config should match runtime URL semantics."""
+
+    def test_fetch_api_pattern_accepts_uppercase_scheme(self):
+        field = get_field_definition("STOCK_LIST_FETCH_API")
+        pattern = field["validation"]["pattern"]
+
+        self.assertIsNotNone(re.match(pattern, "HTTPS://example.com/stocks.json"))
+
+
 class TestSensitiveFieldsUsePasswordControl(unittest.TestCase):
     """Every is_sensitive field must use ui_control='password' to avoid
     leaking secrets in the Web settings page."""
