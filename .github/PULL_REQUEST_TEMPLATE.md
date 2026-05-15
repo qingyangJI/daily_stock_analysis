@@ -34,7 +34,7 @@ For English contributors: please fill in English. All fields marked (EN) accept 
 - #1309 为 umbrella issue 分解场景：`Refs #1309`
 - 仅在 PR 直接闭环 #1309 全部验收时才使用：`Fixes #1309`
 
-> 建议：若你的 PR 是第 N 轮分解任务（如本仓库的 #1309），请务必避免 `Closes`/`Fixes`，固定使用 `Refs`，避免自动关闭总 issue。
+> 建议：若你的 PR 是第 N 轮分解任务（如本仓库的 #1309），请务必避免 `Fixes`，固定使用 `Refs`，避免自动关闭总 issue。
 
 ## Verification Commands And Results
 
@@ -56,6 +56,7 @@ python -m pytest -m "not network"
 
 - 如本 PR 为拆分任务（如 #1309），先填以下结论可减少审查歧义：
   - 本 PR 未新增/修改 `provider`、`model`、`Base URL`、`litellm_model`、`llm_model_list`、LiteLLM/LLM 运行时默认值，也未新增 `.env` 配置迁移或运行时保存/清理/回填逻辑。
+  - 本轮未改动 `src/config.py`、`.env.example`、LLM provider/model/Base URL 默认值与 provider/list 配置清理/回填路径；兼容性风险判断以本次 `tests/test_extensions_runtime.py` 与 CI 结果为准。
   - 若外部模型/API 兼容检测有命中，多为仓库既有文档/说明里的关键词导致的静态告警，不代表本轮改动引入了新的模型/API 兼容语义或迁移；实际影响仅为现有运行时路径的常规回归覆盖范围。
   - 本 PR 回退路径：版本回滚到上一个版本（`revert this PR`），无须执行配置补偿步骤。
 

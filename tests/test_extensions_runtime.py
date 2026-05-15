@@ -305,6 +305,15 @@ class ExtensionRuntimeTestCase(unittest.TestCase):
             self.assertEqual(result.error.message, "Action context is invalid.")
             self.assertEqual(result.error.details["exception_type"], "ValueError")
 
+    def test_invalid_context_rejects_non_mapping_root_context(self):
+        for context in ([], "invalid-context"):
+            result = self._runtime().execute_action("test.echo", context=context)
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "invalid_context")
+            self.assertEqual(result.error.message, "Action context is invalid.")
+            self.assertEqual(result.error.details["exception_type"], "TypeError")
+
     def test_dry_run_validates_without_invoking_handler(self):
         calls = []
         task_runner = StubTaskRunner()

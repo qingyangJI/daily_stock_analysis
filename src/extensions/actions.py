@@ -108,7 +108,12 @@ class ActionContext:
     def from_mapping(cls, value: Optional[Dict[str, Any]]) -> "ActionContext":
         if isinstance(value, cls):
             return value
-        data = value if isinstance(value, dict) else {}
+        if value is None:
+            data = {}
+        elif not isinstance(value, Mapping):
+            raise TypeError("context must be a mapping when provided")
+        else:
+            data = dict(value)
         return cls(
             caller=str(data.get("caller") or "web"),
             trace_id=str(data.get("trace_id") or f"trace_{uuid.uuid4().hex}"),
