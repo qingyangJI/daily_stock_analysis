@@ -21,6 +21,7 @@ from src.config import (
     ANSPIRE_LLM_MODEL_DEFAULT,
     SUPPORTED_LLM_CHANNEL_PROTOCOLS,
     Config,
+    _fetch_stock_list_from_api,
     _get_litellm_provider,
     _uses_direct_env_provider,
     canonicalize_llm_channel_protocol,
@@ -2543,14 +2544,34 @@ class SystemConfigService:
                 "configured",
                 f"已配置 {len(stocks)} 只股票。",
             )
+
+        stock_list_fetch_api = (effective_map.get("STOCK_LIST_FETCH_API") or "").strip()
+        if stock_list_fetch_api:
+            fetched_stocks = _fetch_stock_list_from_api(stock_list_fetch_api)
+            if fetched_stocks:
+                return self._setup_check(
+                    "stock_list",
+                    "自选股",
+                    "base",
+                    True,
+                    "configured",
+                    f"已通过 STOCK_LIST_FETCH_API 获取 {len(fetched_stocks)} 只股票。",
+                )
+
+        message = "STOCK_LIST_FETCH_API 未返回有效股票，且 STOCK_LIST 为空。" if stock_list_fetch_api else "当前 STOCK_LIST 为空。"
+        next_step = (
+            "请检查 STOCK_LIST_FETCH_API，或至少在 STOCK_LIST 添加 1 只股票用于首次试跑。"
+            if stock_list_fetch_api
+            else "请至少添加 1 只股票用于首次试跑。"
+        )
         return self._setup_check(
             "stock_list",
             "自选股",
             "base",
             True,
             "needs_action",
-            "当前 STOCK_LIST 为空。",
-            "请至少添加 1 只股票用于首次试跑。",
+            message,
+            next_step,
         )
 
     def _build_setup_notification_check(self, effective_map: Dict[str, str]) -> Dict[str, Any]:

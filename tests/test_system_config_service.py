@@ -148,6 +148,45 @@ class SystemConfigServiceTestCase(unittest.TestCase):
         self.assertEqual(checks["stock_list"]["status"], "configured")
         self.assertEqual(checks["notification"]["status"], "optional")
 
+    @patch("src.services.system_config_service._fetch_stock_list_from_api", return_value=["600519", "AAPL"])
+    def test_get_setup_status_accepts_remote_stock_list_fetch_api(self, mock_fetch_stock_list) -> None:
+        self._rewrite_env(
+            "LITELLM_MODEL=gemini/gemini-3-flash-preview",
+            "GEMINI_API_KEY=secret-key-value",
+            "STOCK_LIST=",
+            "STOCK_LIST_FETCH_API=https://example.com/watchlist.json",
+        )
+
+        with patch.dict(os.environ, {}, clear=True):
+            status = self.service.get_setup_status()
+
+        checks = {check["key"]: check for check in status["checks"]}
+        self.assertTrue(status["is_complete"])
+        self.assertTrue(status["ready_for_smoke"])
+        self.assertNotIn("stock_list", status["required_missing_keys"])
+        self.assertEqual(checks["stock_list"]["status"], "configured")
+        self.assertIn("STOCK_LIST_FETCH_API", checks["stock_list"]["message"])
+        mock_fetch_stock_list.assert_called_once_with("https://example.com/watchlist.json")
+
+    @patch("src.services.system_config_service._fetch_stock_list_from_api", return_value=[])
+    def test_get_setup_status_requires_stock_list_when_remote_fetch_is_empty(self, mock_fetch_stock_list) -> None:
+        self._rewrite_env(
+            "LITELLM_MODEL=gemini/gemini-3-flash-preview",
+            "GEMINI_API_KEY=secret-key-value",
+            "STOCK_LIST=",
+            "STOCK_LIST_FETCH_API=https://example.com/watchlist.json",
+        )
+
+        with patch.dict(os.environ, {}, clear=True):
+            status = self.service.get_setup_status()
+
+        checks = {check["key"]: check for check in status["checks"]}
+        self.assertFalse(status["is_complete"])
+        self.assertIn("stock_list", status["required_missing_keys"])
+        self.assertEqual(checks["stock_list"]["status"], "needs_action")
+        self.assertIn("STOCK_LIST_FETCH_API", checks["stock_list"]["message"])
+        mock_fetch_stock_list.assert_called_once_with("https://example.com/watchlist.json")
+
     def test_get_setup_status_accepts_anspire_one_key_llm(self) -> None:
         self._rewrite_env(
             "ANSPIRE_API_KEYS=sk-anspire-test-value",
