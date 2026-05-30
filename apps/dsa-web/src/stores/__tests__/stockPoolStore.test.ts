@@ -51,6 +51,18 @@ const historyReport = {
   },
 };
 
+const marketReviewHistoryReport = {
+  ...historyReport,
+  meta: {
+    ...historyReport.meta,
+    id: 10,
+    queryId: 'q-10',
+    stockCode: '',
+    stockName: '大盘复盘',
+    reportType: 'market_review' as const,
+  },
+};
+
 function createTask(overrides: Partial<TaskInfo> = {}): TaskInfo {
   return {
     taskId: 'task-1',
@@ -247,6 +259,38 @@ describe('stockPoolStore', () => {
       page: 1,
       limit: 20,
     });
+  });
+
+  it('closes and resets same-stock trend state when selecting a market-review report', async () => {
+    useStockPoolStore.setState({
+      selectedReport: historyReport,
+      isHistoryTrendOpen: true,
+      stockHistoryItems: [{ ...historyItem, modelUsed: 'gemini/gemini-2.5-pro' }],
+      stockHistoryTotal: 12,
+      stockHistoryPage: 3,
+      stockHistoryHasMore: true,
+    });
+
+    vi.mocked(historyApi.getList).mockResolvedValue({
+      total: 0,
+      page: 1,
+      limit: 20,
+      items: [],
+    });
+    vi.mocked(historyApi.getDetail).mockResolvedValue(marketReviewHistoryReport);
+
+    await useStockPoolStore.getState().selectHistoryItem(1);
+
+    const state = useStockPoolStore.getState();
+    expect(state.selectedReport?.meta.reportType).toBe('market_review');
+    expect(state.isHistoryTrendOpen).toBe(false);
+    expect(state.stockHistoryItems).toEqual([]);
+    expect(state.stockHistoryTotal).toBe(0);
+    expect(state.stockHistoryPage).toBe(1);
+    expect(state.stockHistoryHasMore).toBe(false);
+    expect(state.isLoadingStockHistory).toBe(false);
+    expect(state.isLoadingMoreStockHistory).toBe(false);
+    expect(historyApi.getList).not.toHaveBeenCalled();
   });
 
   it('deletes selected history and clears the selected report when nothing remains', async () => {

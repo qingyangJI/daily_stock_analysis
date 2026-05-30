@@ -217,6 +217,18 @@ function dedupeHistoryItems(items: HistoryItem[]): HistoryItem[] {
   });
 }
 
+function resetStockHistoryState(set: (partial: Partial<StockPoolState>) => void) {
+  set({
+    stockHistoryItems: [],
+    stockHistoryTotal: 0,
+    stockHistoryPage: 1,
+    stockHistoryHasMore: false,
+    isLoadingStockHistory: false,
+    isLoadingMoreStockHistory: false,
+    stockHistoryError: null,
+  });
+}
+
 async function fetchStockHistory(
   get: () => StockPoolState,
   set: (partial: Partial<StockPoolState>) => void,
@@ -227,14 +239,9 @@ async function fetchStockHistory(
   const report = state.selectedReport;
 
   if (!report || report.meta.reportType === 'market_review') {
+    resetStockHistoryState(set);
     set({
-      stockHistoryItems: [],
-      stockHistoryTotal: 0,
-      stockHistoryPage: 1,
-      stockHistoryHasMore: false,
-      isLoadingStockHistory: false,
-      isLoadingMoreStockHistory: false,
-      stockHistoryError: null,
+      isHistoryTrendOpen: false,
     });
     return null;
   }
@@ -387,10 +394,9 @@ export const useStockPoolStore = create<StockPoolState>((set, get) => ({
 
   closeHistoryTrend: () => {
     stockHistoryRequestSeq += 1;
+    resetStockHistoryState(set);
     set({
       isHistoryTrendOpen: false,
-      isLoadingStockHistory: false,
-      isLoadingMoreStockHistory: false,
     });
   },
 
@@ -449,6 +455,14 @@ export const useStockPoolStore = create<StockPoolState>((set, get) => ({
         error: null,
         isLoadingReport: false,
       });
+
+      if (report.meta.reportType === 'market_review' || !report.meta.stockCode) {
+        stockHistoryRequestSeq += 1;
+        resetStockHistoryState(set);
+        set({ isHistoryTrendOpen: false });
+        return;
+      }
+
       if (get().isHistoryTrendOpen) {
         await fetchStockHistory(get, set, { reset: true });
       }
@@ -512,7 +526,12 @@ export const useStockPoolStore = create<StockPoolState>((set, get) => ({
         if (nextItem) {
           await get().selectHistoryItem(nextItem.id);
         } else {
-          set({ selectedReport: null });
+          stockHistoryRequestSeq += 1;
+          resetStockHistoryState(set);
+          set({
+            isHistoryTrendOpen: false,
+            selectedReport: null,
+          });
         }
       }
     } catch (error) {

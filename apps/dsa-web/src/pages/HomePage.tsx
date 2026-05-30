@@ -184,6 +184,16 @@ const HomePage: React.FC = () => {
   const reportLanguage = normalizeReportLanguage(selectedReport?.meta.reportLanguage);
   const reportText = getReportText(reportLanguage);
   const isMarketReviewHistoryReport = selectedReport?.meta.reportType === 'market_review';
+  const isHistoryTrendUnavailable = !selectedReport || selectedReport.meta.reportType === 'market_review'
+    || !selectedReport.meta.stockCode;
+
+  useEffect(() => {
+    if (!isHistoryTrendUnavailable || !isHistoryTrendOpen) {
+      return;
+    }
+    closeHistoryTrend();
+  }, [closeHistoryTrend, isHistoryTrendOpen, isHistoryTrendUnavailable]);
+
   const selectedStrategy = useMemo(
     () => analysisSkills.find((skill) => skill.id === selectedStrategyId),
     [analysisSkills, selectedStrategyId],

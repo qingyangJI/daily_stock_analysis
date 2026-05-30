@@ -409,6 +409,41 @@ class AnalysisHistoryTestCase(unittest.TestCase):
             {"1810.HK", "01810.HK", "HK01810"},
         )
 
+    def test_history_list_matches_sh_and_ss_suffixed_variants(self) -> None:
+        """SH suffix and legacy `.SS` variants should be treated as the same A-share stock."""
+
+        def save_record(code: str, query_id: str) -> None:
+            result = self._build_result()
+            result.code = code
+            saved = self.db.save_analysis_history(
+                result=result,
+                query_id=query_id,
+                report_type="simple",
+                news_content="新闻摘要",
+                context_snapshot=None,
+                save_snapshot=False,
+            )
+            self.assertEqual(saved, 1)
+
+        save_record("600519.SH", "query_cn_sh")
+        save_record("600519.SS", "query_cn_ss")
+        save_record("600519", "query_cn_plain")
+
+        service = HistoryService(self.db)
+        expected = {"600519.SH", "600519.SS", "600519"}
+
+        from_sh = service.get_history_list(stock_code="600519.SH", page=1, limit=10)
+        self.assertEqual(from_sh["total"], 3)
+        self.assertEqual({item["stock_code"] for item in from_sh["items"]}, expected)
+
+        from_ss = service.get_history_list(stock_code="600519.SS", page=1, limit=10)
+        self.assertEqual(from_ss["total"], 3)
+        self.assertEqual({item["stock_code"] for item in from_ss["items"]}, expected)
+
+        from_plain = service.get_history_list(stock_code="600519", page=1, limit=10)
+        self.assertEqual(from_plain["total"], 3)
+        self.assertEqual({item["stock_code"] for item in from_plain["items"]}, expected)
+
     def test_history_detail_preserves_zero_change_pct(self) -> None:
         """change_pct=0.0（平盘）应原样返回，而不是被当成缺失值丢失。
 

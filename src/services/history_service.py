@@ -125,6 +125,9 @@ class HistoryService:
             if exchange:
                 add(f"{normalized}.{exchange}")
                 add(f"{exchange}{normalized}")
+                if exchange == "SH":
+                    add(f"{normalized}.SS")
+                    add(f"SS{normalized}")
 
         return candidates
     
