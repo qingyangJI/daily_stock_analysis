@@ -456,6 +456,50 @@ describe('LLMChannelEditor', () => {
     expect(updateItemMap.get('LLM_MY_PROXY2_MODELS')).toBe('gpt-4o-mini');
   });
 
+  it('keeps persisted API key when renaming a channel that also has runtime-only API_KEYS', async () => {
+    update.mockResolvedValue({
+      success: true,
+      configVersion: 'v2',
+      appliedCount: 1,
+      skippedMaskedCount: 0,
+      reloadTriggered: true,
+      updatedKeys: ['LLM_MY_PROXY_API_KEY', 'LLM_MY_PROXY2_API_KEY', 'LLM_MY_PROXY2_BASE_URL', 'LLM_MY_PROXY2_MODELS'],
+      warnings: [],
+    });
+
+    render(
+      <LLMChannelEditor
+        items={[
+          { key: 'LLM_CHANNELS', value: 'my_proxy', rawValueExists: false },
+          { key: 'LLM_MY_PROXY_PROTOCOL', value: 'openai', rawValueExists: false },
+          { key: 'LLM_MY_PROXY_BASE_URL', value: 'https://proxy.example.com/v1', rawValueExists: false },
+          { key: 'LLM_MY_PROXY_ENABLED', value: 'true', rawValueExists: false },
+          { key: 'LLM_MY_PROXY_API_KEY', value: 'sk-saved' },
+          { key: 'LLM_MY_PROXY_API_KEYS', value: 'sk-runtime-only', rawValueExists: false },
+          { key: 'LLM_MY_PROXY_MODELS', value: 'gpt-4o-mini', rawValueExists: false },
+        ]}
+        configVersion="v1"
+        maskToken="******"
+        onSaved={() => {}}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /my_proxy/i }));
+    fireEvent.change(screen.getByLabelText('渠道名称'), { target: { value: 'my_proxy2' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存 AI 配置' }));
+
+    await waitFor(() => {
+      expect(update).toHaveBeenCalled();
+    });
+
+    const updatePayload = update.mock.calls[0][0];
+    const updateItemMap = new Map(updatePayload.items.map((item: { key: string; value: string }) => [item.key, item.value]));
+
+    expect(updateItemMap.get('LLM_MY_PROXY2_API_KEY')).toBe('sk-saved');
+    expect([...updateItemMap.values()]).not.toContain('sk-runtime-only');
+    expect(updateItemMap.get('LLM_MY_PROXY_API_KEY')).toBe('');
+  });
+
   it('does not migrate runtime-only API keys when renaming a startup-env channel', async () => {
     update.mockResolvedValue({
       success: true,

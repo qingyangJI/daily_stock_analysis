@@ -208,11 +208,21 @@ function resolveInitialChannelApiKeySource(
   const apiKeysKey = `LLM_${upperName}_API_KEYS`;
   const apiKeyKey = `LLM_${upperName}_API_KEY`;
 
-  if ((initialItemValueByKey.get(apiKeysKey) || '').trim()) {
+  const apiKeysValue = (initialItemValueByKey.get(apiKeysKey) || '').trim();
+  const apiKeyValue = (initialItemValueByKey.get(apiKeyKey) || '').trim();
+
+  if (apiKeyValue && initialItemSourceByKey.has(apiKeyKey)) {
+    return initialItemSourceByKey.get(apiKeyKey);
+  }
+  if (apiKeysValue && initialItemSourceByKey.has(apiKeysKey)) {
     return initialItemSourceByKey.get(apiKeysKey);
   }
-  if ((initialItemValueByKey.get(apiKeyKey) || '').trim()) {
+
+  if (apiKeyValue) {
     return initialItemSourceByKey.get(apiKeyKey);
+  }
+  if (apiKeysValue) {
+    return initialItemSourceByKey.get(apiKeysKey);
   }
   return initialItemSourceByKey.get(apiKeysKey) ?? initialItemSourceByKey.get(apiKeyKey);
 }
@@ -1225,7 +1235,7 @@ function parseChannelsFromItems(items: Array<{ key: string; value: string }>): C
       name: name.toLowerCase(),
       protocol: inferProtocol(itemMap.get(`LLM_${upperName}_PROTOCOL`) || '', baseUrl, models),
       baseUrl,
-      apiKey: itemMap.get(`LLM_${upperName}_API_KEYS`) || itemMap.get(`LLM_${upperName}_API_KEY`) || '',
+      apiKey: itemMap.get(`LLM_${upperName}_API_KEY`) || itemMap.get(`LLM_${upperName}_API_KEYS`) || '',
       models: rawModels,
       enabled: parseEnabled(itemMap.get(`LLM_${upperName}_ENABLED`)),
     };
