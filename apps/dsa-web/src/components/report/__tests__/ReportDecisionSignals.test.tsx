@@ -3,12 +3,18 @@ import type React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { decisionSignalsApi } from '../../../api/decisionSignals';
 import { UiLanguageProvider } from '../../../contexts/UiLanguageContext';
-import type { DecisionSignalItem } from '../../../types/decisionSignals';
+import type {
+  DecisionSignalFeedbackItem,
+  DecisionSignalItem,
+  DecisionSignalOutcomeItem,
+} from '../../../types/decisionSignals';
 import { ReportDecisionSignals } from '../ReportDecisionSignals';
 
 vi.mock('../../../api/decisionSignals', () => ({
   decisionSignalsApi: {
     list: vi.fn(),
+    getSignalOutcomes: vi.fn(),
+    getFeedback: vi.fn(),
   },
 }));
 
@@ -45,6 +51,26 @@ const signal: DecisionSignalItem = {
   metadata: undefined,
 };
 
+const outcome: DecisionSignalOutcomeItem = {
+  id: 120,
+  signalId: 21,
+  horizon: '5d',
+  engineVersion: 'decision-signal-v1',
+  evalStatus: 'completed',
+  outcome: 'hit',
+  directionExpected: 'not_down',
+  directionCorrect: true,
+  holdingState: 'holding',
+};
+
+const feedback: DecisionSignalFeedbackItem = {
+  signalId: 21,
+  feedbackValue: 'useful',
+  reasonCode: null,
+  note: null,
+  source: 'web',
+};
+
 function renderComponent(props: React.ComponentProps<typeof ReportDecisionSignals>) {
   return render(
     <UiLanguageProvider>
@@ -71,6 +97,13 @@ beforeEach(() => {
     page: 1,
     pageSize: 20,
   });
+  vi.mocked(decisionSignalsApi.getSignalOutcomes).mockResolvedValue({
+    items: [outcome],
+    total: 1,
+    page: 1,
+    pageSize: 20,
+  });
+  vi.mocked(decisionSignalsApi.getFeedback).mockResolvedValue(feedback);
 });
 
 describe('ReportDecisionSignals', () => {
@@ -87,6 +120,10 @@ describe('ReportDecisionSignals', () => {
     expect(screen.queryByText('partial')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '查看 腾讯控股 AI 建议详情' }));
     expect(within(await screen.findByRole('dialog')).getByText('结构等待确认')).toBeInTheDocument();
+    expect(await within(screen.getByRole('dialog')).findByText('命中')).toBeInTheDocument();
+    expect(within(screen.getByRole('dialog')).getByText('有用')).toBeInTheDocument();
+    expect(decisionSignalsApi.getSignalOutcomes).toHaveBeenCalledWith(21);
+    expect(decisionSignalsApi.getFeedback).toHaveBeenCalledWith(21);
     expect(decisionSignalsApi.list).toHaveBeenCalledWith({
       sourceReportId: 5,
       sourceType: 'analysis',

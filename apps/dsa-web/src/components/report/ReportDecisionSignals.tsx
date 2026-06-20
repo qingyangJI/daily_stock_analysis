@@ -10,7 +10,11 @@ import {
 } from '../decision-signals/DecisionSignalDisplay';
 import { useUiLanguage } from '../../contexts/UiLanguageContext';
 import type { ReportType } from '../../types/analysis';
-import type { DecisionSignalItem } from '../../types/decisionSignals';
+import type {
+  DecisionSignalFeedbackItem,
+  DecisionSignalItem,
+  DecisionSignalOutcomeItem,
+} from '../../types/decisionSignals';
 
 interface ReportDecisionSignalsProps {
   recordId?: number;
@@ -26,7 +30,14 @@ export const ReportDecisionSignals: React.FC<ReportDecisionSignalsProps> = ({
   const [selected, setSelected] = useState<DecisionSignalItem | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<ParsedApiError | null>(null);
+  const [selectedOutcomes, setSelectedOutcomes] = useState<DecisionSignalOutcomeItem[]>([]);
+  const [selectedOutcomesLoading, setSelectedOutcomesLoading] = useState(false);
+  const [selectedOutcomesError, setSelectedOutcomesError] = useState<ParsedApiError | null>(null);
+  const [selectedFeedback, setSelectedFeedback] = useState<DecisionSignalFeedbackItem | null>(null);
+  const [selectedFeedbackLoading, setSelectedFeedbackLoading] = useState(false);
+  const [selectedFeedbackError, setSelectedFeedbackError] = useState<ParsedApiError | null>(null);
   const requestIdRef = useRef(0);
+  const detailRequestIdRef = useRef(0);
   const shouldRender = Boolean(recordId) && reportType !== 'market_review';
 
   const loadSignals = useCallback(async () => {
@@ -36,6 +47,12 @@ export const ReportDecisionSignals: React.FC<ReportDecisionSignalsProps> = ({
     setLoading(true);
     setItems([]);
     setSelected(null);
+    setSelectedOutcomes([]);
+    setSelectedOutcomesLoading(false);
+    setSelectedOutcomesError(null);
+    setSelectedFeedback(null);
+    setSelectedFeedbackLoading(false);
+    setSelectedFeedbackError(null);
     setError(null);
     try {
       const response = await decisionSignalsApi.list({
@@ -64,6 +81,12 @@ export const ReportDecisionSignals: React.FC<ReportDecisionSignalsProps> = ({
       setLoading(false);
       setItems([]);
       setSelected(null);
+      setSelectedOutcomes([]);
+      setSelectedOutcomesLoading(false);
+      setSelectedOutcomesError(null);
+      setSelectedFeedback(null);
+      setSelectedFeedbackLoading(false);
+      setSelectedFeedbackError(null);
       setError(null);
       return;
     }
@@ -72,6 +95,58 @@ export const ReportDecisionSignals: React.FC<ReportDecisionSignalsProps> = ({
       requestIdRef.current += 1;
     };
   }, [loadSignals, shouldRender]);
+
+  useEffect(() => {
+    if (!selected) {
+      detailRequestIdRef.current += 1;
+      setSelectedOutcomes([]);
+      setSelectedOutcomesLoading(false);
+      setSelectedOutcomesError(null);
+      setSelectedFeedback(null);
+      setSelectedFeedbackLoading(false);
+      setSelectedFeedbackError(null);
+      return;
+    }
+
+    const requestId = detailRequestIdRef.current + 1;
+    detailRequestIdRef.current = requestId;
+    setSelectedOutcomesLoading(true);
+    setSelectedFeedbackLoading(true);
+    setSelectedOutcomesError(null);
+    setSelectedFeedbackError(null);
+
+    void decisionSignalsApi.getSignalOutcomes(selected.id)
+      .then((response) => {
+        if (detailRequestIdRef.current !== requestId) return;
+        setSelectedOutcomes(response.items);
+      })
+      .catch((err) => {
+        if (detailRequestIdRef.current !== requestId) return;
+        setSelectedOutcomes([]);
+        setSelectedOutcomesError(getParsedApiError(err));
+      })
+      .finally(() => {
+        if (detailRequestIdRef.current === requestId) {
+          setSelectedOutcomesLoading(false);
+        }
+      });
+
+    void decisionSignalsApi.getFeedback(selected.id)
+      .then((response) => {
+        if (detailRequestIdRef.current !== requestId) return;
+        setSelectedFeedback(response);
+      })
+      .catch((err) => {
+        if (detailRequestIdRef.current !== requestId) return;
+        setSelectedFeedback(null);
+        setSelectedFeedbackError(getParsedApiError(err));
+      })
+      .finally(() => {
+        if (detailRequestIdRef.current === requestId) {
+          setSelectedFeedbackLoading(false);
+        }
+      });
+  }, [selected]);
 
   if (!shouldRender) {
     return null;
@@ -125,7 +200,17 @@ export const ReportDecisionSignals: React.FC<ReportDecisionSignalsProps> = ({
         title={t('decisionSignals.detailTitle')}
         width="max-w-3xl"
       >
-        {selected ? <DecisionSignalDetails item={selected} /> : null}
+        {selected ? (
+          <DecisionSignalDetails
+            item={selected}
+            outcomes={selectedOutcomes}
+            outcomesLoading={selectedOutcomesLoading}
+            outcomesError={selectedOutcomesError?.message ?? null}
+            feedback={selectedFeedback}
+            feedbackLoading={selectedFeedbackLoading}
+            feedbackError={selectedFeedbackError?.message ?? null}
+          />
+        ) : null}
       </Drawer>
     </>
   );
